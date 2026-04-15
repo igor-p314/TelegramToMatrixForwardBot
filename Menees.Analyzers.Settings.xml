@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<analysers>
+  <analyser id="Menees.Analyzers.Settings">
+    <property name="MaxLineLength" value="140" />
+    <property name="TabLength" value="4" />
+    <property name="UseSpaces" value="true" />
+  </analyser>
+</analysers>

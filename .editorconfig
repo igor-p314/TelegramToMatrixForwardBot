@@ -1,0 +1,84 @@
+# editorconfig.org
+
+# top-most EditorConfig file
+root = true
+
+# Default settings:
+# A newline ending every file
+# Use 4 spaces as indentation
+[*]
+insert_final_newline = true
+indent_style = space
+indent_size = 4
+
+# analyzers
+dotnet_diagnostic.AvoidAsyncVoid.severity = error
+
+dotnet_diagnostic.CS1573.severity = error
+dotnet_diagnostic.CS1591.severity = error
+dotnet_diagnostic.CS8600.severity = error
+dotnet_diagnostic.CS8602.severity = error
+dotnet_diagnostic.CS8618.severity = error
+
+
+dotnet_diagnostic.CA1068.severity = warning
+dotnet_diagnostic.CA1822.severity = error
+dotnet_diagnostic.CA1827.severity = error
+dotnet_diagnostic.CA1829.severity = warning
+dotnet_diagnostic.CA1831.severity = warning
+dotnet_diagnostic.CA1861.severity = warning
+dotnet_diagnostic.CA2007.severity = warning
+dotnet_diagnostic.CA2208.severity = warning
+dotnet_diagnostic.CA2016.severity = error
+dotnet_diagnostic.CA2254.severity = none
+
+dotnet_diagnostic.SA1028.severity = error
+dotnet_diagnostic.SA1101.severity = none
+dotnet_diagnostic.SA1118.severity = none
+dotnet_diagnostic.SA1128.severity = none
+dotnet_diagnostic.SA1137.severity = error
+dotnet_diagnostic.SA1200.severity = none
+dotnet_diagnostic.SA1201.severity = none
+dotnet_diagnostic.SA1202.severity = error
+dotnet_diagnostic.SA1204.severity = error
+dotnet_diagnostic.SA1208.severity = none
+dotnet_diagnostic.SA1309.severity = none
+dotnet_diagnostic.SA1312.severity = error
+dotnet_diagnostic.SA1316.severity = none
+dotnet_diagnostic.SA1407.severity = none
+dotnet_diagnostic.SA1414.severity = error
+dotnet_diagnostic.SA1408.severity = none
+dotnet_diagnostic.SA1507.severity = error
+dotnet_diagnostic.SA1513.severity = error
+dotnet_diagnostic.SA1516.severity = error
+dotnet_diagnostic.SA1518.severity = none
+dotnet_diagnostic.SA1520.severity = error
+dotnet_diagnostic.SA1600.severity = none
+dotnet_diagnostic.SA1618.severity = error
+dotnet_diagnostic.SA1611.severity = warning
+
+dotnet_diagnostic.SA1614.severity = error
+dotnet_diagnostic.SA1615.severity = none
+dotnet_diagnostic.SA1616.severity = none
+
+dotnet_diagnostic.SA1623.severity = none
+dotnet_diagnostic.SA1627.severity = none
+dotnet_diagnostic.SA1629.severity = none
+dotnet_diagnostic.SA1633.severity = none
+dotnet_diagnostic.SA1642.severity = none
+dotnet_diagnostic.SA1649.severity = error
+
+dotnet_diagnostic.SX1309.severity = error
+
+dotnet_diagnostic.MEN003.severity = error
+dotnet_diagnostic.MEN013.severity = none
+dotnet_diagnostic.MEN010.severity = warning
+dotnet_diagnostic.MEN015.severity = error
+
+dotnet_diagnostic.IDE0003.severity = warning
+dotnet_diagnostic.IDE0060.severity = error
+dotnet_diagnostic.IDE0090.severity = none
+dotnet_diagnostic.IDE0130.severity = warning
+dotnet_diagnostic.IDE0290.severity = none
+dotnet_diagnostic.IDE0300.severity = none
+
