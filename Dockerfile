@@ -1,14 +1,17 @@
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
-WORKDIR /src
-COPY *.csproj ./
-RUN dotnet restore
-COPY . ./
-RUN dotnet publish -c Release -o /app --no-self-contained
+# build stage
+FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
+RUN apk add --no-cache \
+    clang \
+    build-base \
+    zlib-dev
 
-FROM mcr.microsoft.com/dotnet/runtime-deps:10.0 AS runtime
+WORKDIR /src
+COPY . .
+
+RUN dotnet publish TelegramToMatrixForward.csproj -c Release -r linux-musl-x64 -o /out
+
+# runtime stage
+FROM mcr.microsoft.com/dotnet/runtime-deps:10.0-alpine
 WORKDIR /app
-COPY --from=build /app .
-RUN mkdir -p /data
-ENV LINKS_FILE_PATH=/data/links.bin
-VOLUME ["/data"]
+COPY --from=build /out/TelegramToMatrixForward .
 ENTRYPOINT ["./TelegramToMatrixForward"]
