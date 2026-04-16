@@ -149,6 +149,7 @@ internal sealed class MatrixApiService
             },
             cancellationToken).ConfigureAwait(false);
 
+        await HealthService.HeartBeatMatrixAsync(cancellationToken).ConfigureAwait(false);
         return response;
     }
 

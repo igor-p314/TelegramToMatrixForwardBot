@@ -42,6 +42,8 @@ internal sealed class TelegramApiService
         var response = await _httpClient.GetAsync(url, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
+        await HealthService.HeartBeatTelegramAsync(cancellationToken).ConfigureAwait(false);
+
         var json = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
         var result = JsonSerializer.Deserialize(json, TelegramJsonContext.Default.TelegramResponseUpdate);
 
