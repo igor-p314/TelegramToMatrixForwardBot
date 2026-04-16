@@ -7,7 +7,7 @@ internal static class HealthService
 #if DEBUG
         return Task.CompletedTask;
 #else
-        return File.WriteAllTextAsync("/tmp/matrix.hrtbt", DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(), cancellationToken);
+        return File.WriteAllTextAsync("/tmp/matrix.hrtbt", DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString() + Environment.NewLine, cancellationToken);
 #endif
     }
 
@@ -16,7 +16,7 @@ internal static class HealthService
 #if DEBUG
         return Task.CompletedTask;
 #else
-        return File.WriteAllTextAsync("/tmp/tg.hrtbt", DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(), cancellationToken);
+        return File.WriteAllTextAsync("/tmp/tg.hrtbt", DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString() + Environment.NewLine, cancellationToken);
 #endif
     }
 }

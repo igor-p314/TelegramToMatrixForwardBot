@@ -117,6 +117,11 @@ internal sealed class MatrixService
         await ConnectToServerAsync(authorizationService, cancellationToken).ConfigureAwait(false);
     }
 
+    private static string GetMatrixServerName(string matrixUserId)
+    {
+        return matrixUserId.Split(':').LastOrDefault() ?? throw new InvalidOperationException($"{matrixUserId} - неверный идентификатор пользователя.");
+    }
+
     /// <summary>
     /// Подключается к Matrix серверу и запускает цикл синхронизации.
     /// </summary>
@@ -199,7 +204,14 @@ internal sealed class MatrixService
 
                 foreach (var (roomKey, text, sender, content) in messages)
                 {
-                    await ProcessMessageAsync(roomKey, text, sender, cancellationToken).ConfigureAwait(false);
+                    if (_httpService.HomeServerUrl.Equals(GetMatrixServerName(sender), StringComparison.OrdinalIgnoreCase))
+                    {
+                        await ProcessMessageAsync(roomKey, text, sender, cancellationToken).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await LeaveRoomAsync(roomKey, cancellationToken).ConfigureAwait(false);
+                    }
                 }
 
                 foreach (var room in syncData.Rooms.Join)
@@ -267,7 +279,9 @@ internal sealed class MatrixService
             var isEncrypted = invite.Value.InviteState.Events.Any(e => e.Type == "m.room.encryption");
             var sender = invite.Value.InviteState.Events.FirstOrDefault(e => e.Content?.Membership == "invite")?.Sender ?? string.Empty;
 
-            if (membersCount == MaxAllowedUsersInRoom && !isEncrypted)
+            if (membersCount == MaxAllowedUsersInRoom
+                && !isEncrypted
+                && _httpService.HomeServerUrl.Equals(GetMatrixServerName(sender), StringComparison.OrdinalIgnoreCase))
             {
                 _ = Task.Run(() => JoinDirectRoomAsync(invite.Key, cancellationToken));
             }
