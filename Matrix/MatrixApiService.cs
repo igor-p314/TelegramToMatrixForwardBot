@@ -10,6 +10,7 @@ namespace TelegramToMatrixForward.Matrix;
 /// </summary>
 internal sealed class MatrixApiService
 {
+    private const int AdditionalTimeoutMilliseconds = 5000;
     private const string MatrixPrefix = "matrix";
     private readonly HttpClient _matrixHttpClient;
 
@@ -29,7 +30,7 @@ internal sealed class MatrixApiService
 
         _matrixHttpClient = new HttpClient()
         {
-            Timeout = TimeSpan.FromMilliseconds(Program.PollTimeoutMilliseconds),
+            Timeout = TimeSpan.FromMilliseconds(Program.PollTimeoutMilliseconds + AdditionalTimeoutMilliseconds),
             BaseAddress = new Uri($"https://{MatrixPrefix}.{HomeServerUrl}"),
         };
     }
@@ -140,6 +141,7 @@ internal sealed class MatrixApiService
     internal async Task<HttpResponseMessage> GetAsync(string url, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(_resiliencePipeline, "MatrixService not initialized.");
+        await HealthService.HeartBeatMatrixAsync(cancellationToken).ConfigureAwait(false);
 
         var response = await _resiliencePipeline.ExecuteAsync(
             async token =>
@@ -149,7 +151,6 @@ internal sealed class MatrixApiService
             },
             cancellationToken).ConfigureAwait(false);
 
-        await HealthService.HeartBeatMatrixAsync(cancellationToken).ConfigureAwait(false);
         return response;
     }
 

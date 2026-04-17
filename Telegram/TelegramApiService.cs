@@ -10,6 +10,8 @@ namespace TelegramToMatrixForward.Telegram;
 /// </summary>
 internal sealed class TelegramApiService
 {
+    private const int AdditionalSecondsToTimeout = 5;
+
     private readonly HttpClient _httpClient;
     private readonly string _botToken;
     private readonly int _pollTimeoutSeconds;
@@ -26,7 +28,7 @@ internal sealed class TelegramApiService
         _httpClient = new HttpClient
         {
             BaseAddress = new Uri("https://api.telegram.org/"),
-            Timeout = TimeSpan.FromSeconds(_pollTimeoutSeconds),
+            Timeout = TimeSpan.FromSeconds(_pollTimeoutSeconds + AdditionalSecondsToTimeout),
         };
     }
 
@@ -39,10 +41,11 @@ internal sealed class TelegramApiService
     public async Task<Update[]> GetUpdatesAsync(int offset, CancellationToken cancellationToken)
     {
         var url = $"/bot{_botToken}/getUpdates?offset={offset}&timeout={_pollTimeoutSeconds}&allowed_updates=[\"message\"]";
-        var response = await _httpClient.GetAsync(url, cancellationToken).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
 
         await HealthService.HeartBeatTelegramAsync(cancellationToken).ConfigureAwait(false);
+
+        var response = await _httpClient.GetAsync(url, cancellationToken).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
 
         var json = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
         var result = JsonSerializer.Deserialize(json, TelegramJsonContext.Default.TelegramResponseUpdate);
