@@ -40,7 +40,7 @@ internal sealed class AuthorizationService(MatrixApiService httpService)
     /// <param name="url">URL для авторизации.</param>
     /// <param name="cancellationToken">Токен отмены операции.</param>
     /// <returns>Access token для последующих запросов.</returns>
-    internal async ValueTask<string> AuthorizeAsync(string url, CancellationToken cancellationToken = default)
+    internal async Task<string> AuthorizeAsync(string url, CancellationToken cancellationToken = default)
     {
         var request = new LoginRequest(User: _login, Password: _password);
         var content = JsonContent.Create(request, MatrixJsonContext.Default.LoginRequest);

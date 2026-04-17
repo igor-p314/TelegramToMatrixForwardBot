@@ -29,7 +29,7 @@ internal sealed class EncryptedLinkStore
     /// Загружает и расшифровывает связи из файла.
     /// </summary>
     /// <param name="cancellationToken">Токен отмены операции.</param>
-    public async ValueTask<Dictionary<long, string>> LoadAsync(CancellationToken cancellationToken)
+    public async Task<Dictionary<long, string>> LoadAsync(CancellationToken cancellationToken)
     {
         var result = new Dictionary<long, string>();
 
@@ -58,7 +58,7 @@ internal sealed class EncryptedLinkStore
     /// </summary>
     /// <param name="links">Массив ссылок.</param>
     /// <param name="cancellationToken">Токен отмены операции.</param>
-    public async ValueTask SaveAsync(Dictionary<long, string> links, CancellationToken cancellationToken)
+    public async Task SaveAsync(Dictionary<long, string> links, CancellationToken cancellationToken)
     {
         var binaryData = SerializeToBinary(links);
         var iv = RandomNumberGenerator.GetBytes(AesGcm.NonceByteSizes.MaxSize);

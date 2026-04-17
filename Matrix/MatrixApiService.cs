@@ -40,7 +40,7 @@ internal sealed class MatrixApiService
     /// <param name="url">URL для авторизации.</param>
     /// <param name="cancellationToken">Токен отмены операции.</param>
     /// <returns>Сервис авторизации с полученным токеном.</returns>
-    internal async ValueTask<AuthorizationService> AuthorizeAsync(string url, CancellationToken cancellationToken)
+    internal async Task<AuthorizationService> AuthorizeAsync(string url, CancellationToken cancellationToken)
     {
         var authorizationService = new AuthorizationService(this);
 
@@ -81,7 +81,7 @@ internal sealed class MatrixApiService
     /// <param name="content">Тело запроса.</param>
     /// <param name="cancellationToken">Токен отмены операции.</param>
     /// <returns>Ответ сервера.</returns>
-    internal async ValueTask<HttpResponseMessage> PostAsync(string url, HttpContent? content, CancellationToken cancellationToken)
+    internal async Task<HttpResponseMessage> PostAsync(string url, HttpContent? content, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(_resiliencePipeline, "MatrixService not initialized.");
 
@@ -103,7 +103,7 @@ internal sealed class MatrixApiService
     /// <param name="content">Тело запроса.</param>
     /// <param name="cancellationToken">Токен отмены операции.</param>
     /// <returns>Ответ сервера.</returns>
-    internal async ValueTask<HttpResponseMessage> PostNoRetryAsync(string url, HttpContent content, CancellationToken cancellationToken)
+    internal async Task<HttpResponseMessage> PostNoRetryAsync(string url, HttpContent content, CancellationToken cancellationToken)
     {
         var response = await _matrixHttpClient.PostAsync(url, content, cancellationToken).ConfigureAwait(false);
         return response;
@@ -116,7 +116,7 @@ internal sealed class MatrixApiService
     /// <param name="content">Тело запроса.</param>
     /// <param name="cancellationToken">Токен отмены операции.</param>
     /// <returns>Ответ сервера.</returns>
-    internal async ValueTask<HttpResponseMessage> PutAsync(string url, HttpContent content, CancellationToken cancellationToken)
+    internal async Task<HttpResponseMessage> PutAsync(string url, HttpContent content, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(_resiliencePipeline, "MatrixService not initialized.");
 
@@ -137,7 +137,7 @@ internal sealed class MatrixApiService
     /// <param name="url">Относительный URL запроса.</param>
     /// <param name="cancellationToken">Токен отмены операции.</param>
     /// <returns>Ответ сервера.</returns>
-    internal async ValueTask<HttpResponseMessage> GetAsync(string url, CancellationToken cancellationToken)
+    internal async Task<HttpResponseMessage> GetAsync(string url, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(_resiliencePipeline, "MatrixService not initialized.");
 
@@ -159,7 +159,7 @@ internal sealed class MatrixApiService
     /// <param name="url">Относительный URL запроса.</param>
     /// <param name="cancellationToken">Токен отмены операции.</param>
     /// <returns>Тело ответа в виде строки.</returns>
-    internal async ValueTask<string> GetStringAsync(string url, CancellationToken cancellationToken)
+    internal async Task<string> GetStringAsync(string url, CancellationToken cancellationToken)
     {
         var response = await GetAsync(url, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
@@ -172,7 +172,7 @@ internal sealed class MatrixApiService
     /// <param name="url">Относительный URL запроса.</param>
     /// <param name="cancellationToken">Токен отмены операции.</param>
     /// <returns>Поток с данными ответа.</returns>
-    internal async ValueTask<Stream> GetStreamAsync(string url, CancellationToken cancellationToken)
+    internal async Task<Stream> GetStreamAsync(string url, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(_streamResiliencePipeline, "MatrixService not initialized.");
 

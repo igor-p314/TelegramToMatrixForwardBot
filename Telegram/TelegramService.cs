@@ -51,7 +51,7 @@ internal sealed class TelegramService
     /// </summary>
     /// <param name="message">Сообщение из Telegram.</param>
     /// <param name="cancellationToken">Токен отмены операции.</param>
-    public async ValueTask ProcessMessageAsync(Message message, CancellationToken cancellationToken)
+    public async Task ProcessMessageAsync(Message message, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(message.From, "message.From");
 
@@ -283,7 +283,7 @@ internal sealed class TelegramService
         return mediaInfo;
     }
 
-    private async ValueTask HandleStartCommandAsync(long telegramUserId, CancellationToken cancellationToken)
+    private async Task HandleStartCommandAsync(long telegramUserId, CancellationToken cancellationToken)
     {
         var matrixRoomKey = _linkService.GetMatrixRoomKey(telegramUserId);
         if (string.IsNullOrEmpty(matrixRoomKey))
@@ -303,13 +303,13 @@ internal sealed class TelegramService
         }
     }
 
-    private async ValueTask HandleStopCommandAsync(long telegramUserId, CancellationToken cancellationToken)
+    private async Task HandleStopCommandAsync(long telegramUserId, CancellationToken cancellationToken)
     {
         await _linkService.UnlinkAsync(telegramUserId, cancellationToken).ConfigureAwait(false);
         await _apiService.SendMessageAsync(telegramUserId, "✅ Связь с Matrix удалена.", cancellationToken).ConfigureAwait(false);
     }
 
-    private async ValueTask ForwardToMatrixAsync(
+    private async Task ForwardToMatrixAsync(
         Message message,
         string roomKey,
         string prefix,
@@ -342,7 +342,7 @@ internal sealed class TelegramService
         }
     }
 
-    private async ValueTask SendMediaToMatrixAsync(
+    private async Task SendMediaToMatrixAsync(
         Message message,
         string roomKey,
         string plainPrefix,
@@ -383,7 +383,7 @@ internal sealed class TelegramService
         return result;
     }
 
-    private async ValueTask SendMediaToMatrixAsync(
+    private async Task SendMediaToMatrixAsync(
         MediaInfo mediaInfo,
         string roomKey,
         CancellationToken cancellationToken)

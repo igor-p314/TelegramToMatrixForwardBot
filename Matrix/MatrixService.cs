@@ -52,7 +52,7 @@ internal sealed class MatrixService
     /// <param name="roomKey">Идентификатор комнаты Matrix.</param>
     /// <param name="message">Сообщени для отправки.</param>
     /// <param name="cancellationToken">Токен отмены операции.</param>
-    public async ValueTask SendMessageToRoomAsync(string roomKey, Message message, CancellationToken cancellationToken)
+    public async Task SendMessageToRoomAsync(string roomKey, Message message, CancellationToken cancellationToken)
     {
         await SendToRoomAsync(roomKey, message, cancellationToken).ConfigureAwait(false);
     }
@@ -65,7 +65,7 @@ internal sealed class MatrixService
     /// <param name="mimeType">MIME-тип файла.</param>
     /// <param name="cancellationToken">Токен отмены операции.</param>
     /// <returns>MXC URI загруженного файла или null при ошибке.</returns>
-    public async ValueTask<string?> UploadFileAsync(Stream fileStream, string fileName, string mimeType, CancellationToken cancellationToken)
+    public async Task<string?> UploadFileAsync(Stream fileStream, string fileName, string mimeType, CancellationToken cancellationToken)
     {
         var uploadUrl = $"/_matrix/media/v3/upload?filename={Uri.EscapeDataString(fileName)}";
         string? result = null;
@@ -99,7 +99,7 @@ internal sealed class MatrixService
     /// <param name="roomKey">Идентификатор комнаты.</param>
     /// <param name="json">Сообщение в формате json.</param>
     /// <param name="cancellationToken">Токен отмены операции.</param>
-    public ValueTask<HttpResponseMessage> SendToRoomAsync(string roomKey, JsonContent json, CancellationToken cancellationToken)
+    public Task<HttpResponseMessage> SendToRoomAsync(string roomKey, JsonContent json, CancellationToken cancellationToken)
     {
         var txnId = $"{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}_{Guid.NewGuid():N}";
         var sendUrl = $"/_matrix/client/v3/rooms/{Uri.EscapeDataString(roomKey)}/send/m.room.message/{txnId}";
@@ -127,7 +127,7 @@ internal sealed class MatrixService
     /// </summary>
     /// <param name="authorizationService">Сервис авторизации.</param>
     /// <param name="cancellationToken">Токен отмены операции.</param>
-    private async ValueTask ConnectToServerAsync(AuthorizationService authorizationService, CancellationToken cancellationToken)
+    private async Task ConnectToServerAsync(AuthorizationService authorizationService, CancellationToken cancellationToken)
     {
         string? batchFromFile = null;
         if (!string.IsNullOrEmpty(_batchTokenPath) && File.Exists(_batchTokenPath))
@@ -179,7 +179,7 @@ internal sealed class MatrixService
     /// <param name="currentUserId">Идентификатор текущего пользователя (бота).</param>
     /// <param name="cancellationToken">Токен отмены операции.</param>
     /// <returns>Токен следующей партии синхронизации.</returns>
-    private async ValueTask<string> ProcessSyncDataResponseAsync(string response, string currentUserId, CancellationToken cancellationToken)
+    private async Task<string> ProcessSyncDataResponseAsync(string response, string currentUserId, CancellationToken cancellationToken)
     {
         var syncData = JsonSerializer.Deserialize(response, MatrixJsonContext.Default.SyncUpdate)
             ?? throw new InvalidOperationException("Failed to deserialize sync data.");
@@ -237,7 +237,7 @@ internal sealed class MatrixService
     /// <param name="text">Текст сообщения.</param>
     /// <param name="sender">Идентификатор отправителя.</param>
     /// <param name="cancellationToken">Токен отмены операции.</param>
-    private async ValueTask ProcessMessageAsync(string roomKey, string text, string sender, CancellationToken cancellationToken)
+    private async Task ProcessMessageAsync(string roomKey, string text, string sender, CancellationToken cancellationToken)
     {
         var command = text.Trim();
         switch (command)
@@ -270,7 +270,7 @@ internal sealed class MatrixService
     /// </summary>
     /// <param name="invites">Словарь приглашений (roomKey → данные).</param>
     /// <param name="cancellationToken">Токен отмены операции.</param>
-    private async ValueTask ProcessInvitesAsync(Dictionary<string, InviteData> invites, CancellationToken cancellationToken)
+    private async Task ProcessInvitesAsync(Dictionary<string, InviteData> invites, CancellationToken cancellationToken)
     {
         foreach (var invite in invites)
         {
@@ -283,11 +283,11 @@ internal sealed class MatrixService
                 && !isEncrypted
                 && _httpService.HomeServerUrl.Equals(GetMatrixServerName(sender), StringComparison.OrdinalIgnoreCase))
             {
-                _ = Task.Run(() => JoinDirectRoomAsync(invite.Key, cancellationToken));
+                _ = Task.Run(() => JoinDirectRoomAsync(invite.Key, cancellationToken), cancellationToken);
             }
             else
             {
-                _ = Task.Run(() => LeaveRoomAsync(invite.Key, cancellationToken));
+                _ = Task.Run(() => LeaveRoomAsync(invite.Key, cancellationToken), cancellationToken);
                 Log.Information(
                     "Отклонено приглашение в комнату '{roomName}'. Количество участников: {membersCount}, IsEncrypted = {isEncrypted}.",
                     roomName,
@@ -302,7 +302,7 @@ internal sealed class MatrixService
     /// </summary>
     /// <param name="roomKey">Идентификатор комнаты.</param>
     /// <param name="cancellationToken">Токен отмены операции.</param>
-    private async ValueTask JoinDirectRoomAsync(string roomKey, CancellationToken cancellationToken)
+    private async Task JoinDirectRoomAsync(string roomKey, CancellationToken cancellationToken)
     {
         var joinUrl = $"/_matrix/client/v3/rooms/{Uri.EscapeDataString(roomKey)}/join";
         var response = await _httpService.PostAsync(joinUrl, null, cancellationToken).ConfigureAwait(false);
@@ -316,7 +316,7 @@ internal sealed class MatrixService
     /// </summary>
     /// <param name="roomKey">Идентификатор комнаты.</param>
     /// <param name="cancellationToken">Токен отмены операции.</param>
-    private async ValueTask LeaveRoomAsync(string roomKey, CancellationToken cancellationToken)
+    private async Task LeaveRoomAsync(string roomKey, CancellationToken cancellationToken)
     {
         var leaveUrl = $"/_matrix/client/v3/rooms/{Uri.EscapeDataString(roomKey)}/leave";
         var response = await _httpService.PostAsync(leaveUrl, null, cancellationToken).ConfigureAwait(false);
@@ -329,7 +329,7 @@ internal sealed class MatrixService
     /// <param name="roomKey">Идентификатор комнаты.</param>
     /// <param name="message">Сообщение для отправки.</param>
     /// <param name="cancellationToken">Токен отмены операции.</param>
-    private async ValueTask SendToRoomAsync(string roomKey, Message message, CancellationToken cancellationToken)
+    private async Task SendToRoomAsync(string roomKey, Message message, CancellationToken cancellationToken)
     {
         var content = JsonContent.Create(message.ToSerializableMessage(), MatrixJsonContext.Default.DictionaryStringString);
         var response = await SendToRoomAsync(roomKey, content, cancellationToken).ConfigureAwait(false);
@@ -343,7 +343,7 @@ internal sealed class MatrixService
     /// <param name="roomKey">Идентификатор комнаты.</param>
     /// <param name="retentionInMilliseconds">Время хранения сообщений в миллисекундах.</param>
     /// <param name="cancellationToken">Токен отмены операции.</param>
-    private async ValueTask SendRetentionToRoomAsync(string roomKey, long retentionInMilliseconds, CancellationToken cancellationToken)
+    private async Task SendRetentionToRoomAsync(string roomKey, long retentionInMilliseconds, CancellationToken cancellationToken)
     {
         var content = JsonContent.Create(
                 new Dictionary<string, object>
@@ -363,7 +363,7 @@ internal sealed class MatrixService
     /// <param name="roomKey">Идентификатор комнаты.</param>
     /// <param name="eventId">Идентификатор события.</param>
     /// <param name="cancellationToken">Токен отмены операции.</param>
-    private async ValueTask SetReadMarkerAsync(string roomKey, string eventId, CancellationToken cancellationToken)
+    private async Task SetReadMarkerAsync(string roomKey, string eventId, CancellationToken cancellationToken)
     {
         var url = $"/_matrix/client/v3/rooms/{Uri.EscapeDataString(roomKey)}/read_markers";
 

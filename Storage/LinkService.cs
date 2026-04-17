@@ -22,7 +22,7 @@ internal sealed class LinkService
     /// Загружает связи из зашифрованного файла в память при старте.
     /// </summary>
     /// <param name="cancellationToken">Токен отмены операции.</param>
-    public async ValueTask LoadAsync(CancellationToken cancellationToken)
+    public async Task LoadAsync(CancellationToken cancellationToken)
     {
         var loadedLinks = await _store.LoadAsync(cancellationToken).ConfigureAwait(false);
         foreach (var (telegramId, matrixId) in loadedLinks)
@@ -63,7 +63,7 @@ internal sealed class LinkService
     /// <returns>true, если связь успешно создана; false, если код не найден или принадлежит другому пользователю.</returns>
     /// <param name="roomKey">Идентификатор комнаты Matrix.</param>
     /// <param name="cancellationToken">Токен отмены операции.</param>
-    public async ValueTask<bool> TryLinkByCodeAsync(string code, string roomKey, CancellationToken cancellationToken)
+    public async Task<bool> TryLinkByCodeAsync(string code, string roomKey, CancellationToken cancellationToken)
     {
         var result = false;
         if (_pendingCodes.TryGetValue(code, out var pendingData))
@@ -100,7 +100,7 @@ internal sealed class LinkService
     /// <param name="telegramUserId">Идентификатор пользователя Telegram, связь которого нужно удалить.</param>
     /// <returns>true, если связь была найдена и удалена; false, если связь не найдена.</returns>
     /// <param name="cancellationToken">Токен отмены операции.</param>
-    public async ValueTask UnlinkAsync(long telegramUserId, CancellationToken cancellationToken)
+    public async Task UnlinkAsync(long telegramUserId, CancellationToken cancellationToken)
     {
         _telegramIdToMatrixLinks.Remove(telegramUserId);
         await _store.SaveAsync(_telegramIdToMatrixLinks, cancellationToken).ConfigureAwait(false);

@@ -36,7 +36,7 @@ internal sealed class TelegramApiService
     /// <param name="offset">Смещение для получения следующих обновлений.</param>
     /// <param name="cancellationToken">Токен отмены операции.</param>
     /// <returns>Массив обновлений.</returns>
-    public async ValueTask<Update[]> GetUpdatesAsync(int offset, CancellationToken cancellationToken)
+    public async Task<Update[]> GetUpdatesAsync(int offset, CancellationToken cancellationToken)
     {
         var url = $"/bot{_botToken}/getUpdates?offset={offset}&timeout={_pollTimeoutSeconds}&allowed_updates=[\"message\"]";
         var response = await _httpClient.GetAsync(url, cancellationToken).ConfigureAwait(false);
@@ -63,7 +63,7 @@ internal sealed class TelegramApiService
     /// <param name="chatId">Идентификатор чата.</param>
     /// <param name="text">Текст сообщения.</param>
     /// <param name="cancellationToken">Токен отмены операции.</param>
-    public async ValueTask SendMessageAsync(long chatId, string text, CancellationToken cancellationToken)
+    public async Task SendMessageAsync(long chatId, string text, CancellationToken cancellationToken)
     {
         var url = $"/bot{_botToken}/sendMessage";
         var content = new FormUrlEncodedContent(new[]
@@ -88,7 +88,7 @@ internal sealed class TelegramApiService
     /// <param name="fileId">Идентификатор файла.</param>
     /// <param name="cancellationToken">Токен отмены операции.</param>
     /// <returns>Информация о файле или null при ошибке.</returns>
-    public async ValueTask<FileResponse?> GetFileAsync(string fileId, CancellationToken cancellationToken)
+    public async Task<FileResponse?> GetFileAsync(string fileId, CancellationToken cancellationToken)
     {
         var url = $"/bot{_botToken}/getFile?file_id={Uri.EscapeDataString(fileId)}";
         var response = await _httpClient.GetAsync(url, cancellationToken).ConfigureAwait(false);
@@ -106,7 +106,7 @@ internal sealed class TelegramApiService
     /// <param name="filePath">Путь к файлу, полученный из GetFileAsync.</param>
     /// <param name="cancellationToken">Токен отмены операции.</param>
     /// <returns>Поток с данными файла.</returns>
-    public async ValueTask<Stream> DownloadFileAsync(string filePath, CancellationToken cancellationToken)
+    public async Task<Stream> DownloadFileAsync(string filePath, CancellationToken cancellationToken)
     {
         var url = $"/file/bot{_botToken}/{filePath}";
         var response = await _httpClient.GetAsync(url, cancellationToken).ConfigureAwait(false);
