@@ -1,7 +1,6 @@
 namespace TelegramToMatrixForward;
 
 using Serilog;
-using Serilog.Formatting.Compact;
 using System.Threading;
 using System.Threading.Tasks;
 using TelegramToMatrixForward.Matrix;
@@ -26,7 +25,8 @@ public class Program
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Information()
             .WriteTo.File("logs/log.txt", rollingInterval: RollingInterval.Day)
-            .WriteTo.Console(new RenderedCompactJsonFormatter())
+            .WriteTo.Console(outputTemplate:
+                "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {SourceContext} {Message:lj}{NewLine}{Exception}")
             .CreateLogger();
 
         try
