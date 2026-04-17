@@ -26,7 +26,7 @@ public class Program
             .MinimumLevel.Information()
             .WriteTo.File("logs/log.txt", rollingInterval: RollingInterval.Day)
             .WriteTo.Console(outputTemplate:
-                "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} {Level} {SourceContext} {Message:lj}{NewLine}{Exception}")
+                "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} {ShortLevel} {Level} {SourceContext} {Message:lj}{NewLine}{Exception}")
             .CreateLogger();
 
         try
