@@ -1,6 +1,5 @@
 using Serilog;
-using System.Net.Http.Json;
-using TelegramToMatrixForward.Dto;
+using System.Threading.Channels;
 using TelegramToMatrixForward.Dto.Telegram;
 using TelegramToMatrixForward.Storage;
 
@@ -13,36 +12,40 @@ internal sealed class TelegramService
 {
     private const int MaxVideoHeight = 720;
 
-    private readonly string _offsetIdPath;
+    private readonly ApplicationSettings _applicationSettings;
 
     private readonly TelegramApiService _apiService;
-    private readonly Matrix.MatrixService _matrixService;
+
+    private readonly ChannelWriter<Message> _writeChannel;
+    private readonly ChannelReader<Dto.Matrix.ToTelegramMessage> _readChannel;
+
     private readonly LinkService _linkService;
+
     private readonly int _maxFileSizeInBytes;
     private readonly int _maxFileSizeMegaBytes;
 
     /// <summary>
     /// Создаёт экземпляр сервиса Telegram.
     /// </summary>
-    /// <param name="apiService">Сервис Telegram Bot API.</param>
-    /// <param name="matrixService">Сервис Matrix.</param>
     /// <param name="linkService">Сервис управления связями.</param>
-    /// <param name="maxFileSizeMb">Максимальный размер файла для пересылки в МБ.</param>
-    /// <param name="offsetIdPath">Путь к файлу с идентифкатором синхронизации чатов.</param>
+    /// <param name="writeChannel">Канал для пересылки в Matrix.</param>
+    /// <param name="readChannel">Канал для пересылки в телеграмм.</param>
+    /// <param name="applicationSettings">Настройки приложения.</param>
     public TelegramService(
-        TelegramApiService apiService,
-        Matrix.MatrixService matrixService,
         LinkService linkService,
-        int maxFileSizeMb,
-        string offsetIdPath)
+        ChannelWriter<Message> writeChannel,
+        ChannelReader<Dto.Matrix.ToTelegramMessage> readChannel,
+        ApplicationSettings applicationSettings)
     {
-        _apiService = apiService;
-        _matrixService = matrixService;
+        _apiService = new TelegramApiService(applicationSettings);
+        _writeChannel = writeChannel;
+        _readChannel = readChannel;
+
         _linkService = linkService;
-        _maxFileSizeMegaBytes = maxFileSizeMb;
-        _offsetIdPath = offsetIdPath;
+        _applicationSettings = applicationSettings;
+        _maxFileSizeMegaBytes = applicationSettings.MaxFileSizeMb;
 #pragma warning disable MEN010 // Байты килобайты
-        _maxFileSizeInBytes = maxFileSizeMb * 1024 * 1024;
+        _maxFileSizeInBytes = applicationSettings.MaxFileSizeMb * 1024 * 1024;
 #pragma warning restore MEN010
     }
 
@@ -55,48 +58,16 @@ internal sealed class TelegramService
     {
         ArgumentNullException.ThrowIfNull(message.From, "message.From");
 
-        var telegramUserId = message.From.Id;
-        var username = TelegramEntitiesParser.EscapeHtmlAttribute(
-                            message.ForwardFrom?.Username
-                            ?? message.ForwardFromChat?.Username
-                            ?? message.From.Username
-                            ?? "Unknown");
-        var firstName = message.ForwardFrom?.FirstName ?? message.ForwardFromChat?.Title ?? message.From.FirstName;
-        var lastName = message.ForwardFromChat is null ? message.ForwardFrom?.LastName ?? message.From?.LastName : null;
-        var displayName = $"{firstName} {lastName}".Trim();
-        if (string.IsNullOrWhiteSpace(displayName))
-        {
-            displayName = "Unknown";
-        }
-        else
-        {
-            displayName = TelegramEntitiesParser.EscapeHtmlAttribute(displayName);
-        }
-
         switch (message.Text)
         {
             case string text when "/start".Equals(text?.Trim()):
-                await HandleStartCommandAsync(telegramUserId, cancellationToken).ConfigureAwait(false);
+                await HandleStartCommandAsync(message.From.Id, cancellationToken).ConfigureAwait(false);
                 break;
             case string text when "/stop".Equals(text?.Trim()):
-                await HandleStopCommandAsync(telegramUserId, cancellationToken).ConfigureAwait(false);
+                await HandleStopCommandAsync(message.From.Id, cancellationToken).ConfigureAwait(false);
                 break;
             default:
-                var matrixRoomKey = _linkService.GetMatrixRoomKey(telegramUserId);
-                if (!string.IsNullOrEmpty(matrixRoomKey))
-                {
-                    var prefix = $"[Telegram: {displayName} @{username}]\n\n";
-                    var formattedPrfix = $"[Telegram: <a href=\"https://t.me/{username}\">{displayName}</a>]\n\n<br />";
-                    await ForwardToMatrixAsync(message, matrixRoomKey, prefix, formattedPrfix, cancellationToken).ConfigureAwait(false);
-                }
-                else
-                {
-                    await _apiService.SendMessageAsync(
-                        message.ChatId,
-                        "❌ Вы не связаны с Matrix. Отправьте /start для настройки связи.",
-                        cancellationToken).ConfigureAwait(false);
-                }
-
+                await SendMessageToMatrixAsync(message, cancellationToken).ConfigureAwait(false);
                 break;
         }
     }
@@ -109,10 +80,12 @@ internal sealed class TelegramService
     {
         var offset = 0;
 
-        if (!string.IsNullOrEmpty(_offsetIdPath) && File.Exists(_offsetIdPath))
+        if (!string.IsNullOrEmpty(_applicationSettings.TelegramOffsetIdPath) && File.Exists(_applicationSettings.TelegramOffsetIdPath))
         {
-            offset = int.Parse(await File.ReadAllTextAsync(_offsetIdPath, cancellationToken).ConfigureAwait(false));
+            offset = int.Parse(await File.ReadAllTextAsync(_applicationSettings.TelegramOffsetIdPath, cancellationToken).ConfigureAwait(false));
         }
+
+        _ = ListenMatrixToTelegramChannelAsync(_readChannel, _apiService,  cancellationToken); // fire and forget
 
         Log.Information("Telegram bot запущен в режиме long polling.");
 
@@ -130,9 +103,9 @@ internal sealed class TelegramService
 
                         await ProcessMessageAsync(update.Message, cancellationToken).ConfigureAwait(false);
 
-                        if (!string.IsNullOrEmpty(_offsetIdPath))
+                        if (!string.IsNullOrEmpty(_applicationSettings.TelegramOffsetIdPath))
                         {
-                            await File.WriteAllTextAsync(_offsetIdPath, offset.ToString(), cancellationToken).ConfigureAwait(false);
+                            await File.WriteAllTextAsync(_applicationSettings.TelegramOffsetIdPath, offset.ToString(), cancellationToken).ConfigureAwait(false);
                         }
                     }
                 }
@@ -149,7 +122,29 @@ internal sealed class TelegramService
         }
     }
 
-    private static MediaInfo SetPhotoDefaults(MediaInfo mediaInfo)
+    private static async Task ListenMatrixToTelegramChannelAsync(
+        ChannelReader<Dto.Matrix.ToTelegramMessage> reader,
+        TelegramApiService apiService,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await foreach (var message in reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+            {
+                await apiService.SendMessageAsync(message.ChatId, message.Text, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException ex)
+        {
+            Log.Error(ex, "Отмена чтения канала свящи Matrix->Telegram.");
+        }
+        finally
+        {
+            Log.Information("Слушание канала Matrix->Telegram завершено.");
+        }
+    }
+
+    private static ProcessedMedia SetPhotoDefaults(MediaInfo mediaInfo)
     {
         if (string.IsNullOrEmpty(mediaInfo.MimeType))
         {
@@ -161,12 +156,14 @@ internal sealed class TelegramService
             mediaInfo.FileName = "photo.jpg";
         }
 
-        mediaInfo.MatrixMessageType = "m.image";
-
-        return mediaInfo;
+        return new ProcessedMedia()
+        {
+            MatrixMessageType = "m.image",
+            MediaInfo = mediaInfo,
+        };
     }
 
-    private static MediaInfo SetDocumentDefaults(MediaInfo mediaInfo)
+    private static ProcessedMedia SetDocumentDefaults(MediaInfo mediaInfo)
     {
         if (string.IsNullOrEmpty(mediaInfo.MimeType))
         {
@@ -178,12 +175,14 @@ internal sealed class TelegramService
             mediaInfo.FileName = "document";
         }
 
-        mediaInfo.MatrixMessageType = "m.file";
-
-        return mediaInfo;
+        return new ProcessedMedia()
+        {
+            MatrixMessageType = "m.file",
+            MediaInfo = mediaInfo,
+        };
     }
 
-    private static MediaInfo SetVideoDefaults(MediaInfo mediaInfo, long maxFileSizeInBytes)
+    private static ProcessedMedia SetVideoDefaults(MediaInfo mediaInfo, long maxFileSizeInBytes)
     {
         if (string.IsNullOrEmpty(mediaInfo.MimeType))
         {
@@ -194,8 +193,6 @@ internal sealed class TelegramService
         {
             mediaInfo.FileName = "video.mp4";
         }
-
-        mediaInfo.MatrixMessageType = "m.video";
 
         if (mediaInfo.Qualities?.Length > 0)
         {
@@ -212,10 +209,14 @@ internal sealed class TelegramService
             }
         }
 
-        return mediaInfo;
+        return new ProcessedMedia()
+        {
+            MatrixMessageType = "m.video",
+            MediaInfo = mediaInfo,
+        };
     }
 
-    private static MediaInfo SetAudioDefaults(MediaInfo mediaInfo)
+    private static ProcessedMedia SetAudioDefaults(MediaInfo mediaInfo)
     {
         if (string.IsNullOrEmpty(mediaInfo.MimeType))
         {
@@ -227,12 +228,14 @@ internal sealed class TelegramService
             mediaInfo.FileName = "audio.mp3";
         }
 
-        mediaInfo.MatrixMessageType = "m.audio";
-
-        return mediaInfo;
+        return new ProcessedMedia()
+        {
+            MatrixMessageType = "m.audio",
+            MediaInfo = mediaInfo,
+        };
     }
 
-    private static MediaInfo SetVoiceDefaults(MediaInfo mediaInfo)
+    private static ProcessedMedia SetVoiceDefaults(MediaInfo mediaInfo)
     {
         if (string.IsNullOrEmpty(mediaInfo.MimeType))
         {
@@ -244,12 +247,14 @@ internal sealed class TelegramService
             mediaInfo.FileName = "voice.ogg";
         }
 
-        mediaInfo.MatrixMessageType = "m.audio";
-
-        return mediaInfo;
+        return new ProcessedMedia()
+        {
+            MatrixMessageType = "m.audio",
+            MediaInfo = mediaInfo,
+        };
     }
 
-    private static MediaInfo SetVideoNoteDefaults(MediaInfo mediaInfo)
+    private static ProcessedMedia SetVideoNoteDefaults(MediaInfo mediaInfo)
     {
         if (string.IsNullOrEmpty(mediaInfo.MimeType))
         {
@@ -261,12 +266,14 @@ internal sealed class TelegramService
             mediaInfo.FileName = "videonote.mp4";
         }
 
-        mediaInfo.MatrixMessageType = "m.video";
-
-        return mediaInfo;
+        return new ProcessedMedia()
+        {
+            MatrixMessageType = "m.video",
+            MediaInfo = mediaInfo,
+        };
     }
 
-    private static MediaInfo SetStickerDefaults(MediaInfo mediaInfo)
+    private static ProcessedMedia SetStickerDefaults(MediaInfo mediaInfo)
     {
         if (string.IsNullOrEmpty(mediaInfo.MimeType))
         {
@@ -278,9 +285,11 @@ internal sealed class TelegramService
             mediaInfo.FileName = mediaInfo.IsVideo.GetValueOrDefault() ? "sticker.webm" : "sticker.webp";
         }
 
-        mediaInfo.MatrixMessageType = mediaInfo.IsVideo.GetValueOrDefault() ? "m.video" : "m.image";
-
-        return mediaInfo;
+        return new ProcessedMedia()
+        {
+            MatrixMessageType = mediaInfo.IsVideo.GetValueOrDefault() ? "m.video" : "m.image",
+            MediaInfo = mediaInfo,
+        };
     }
 
     private async Task HandleStartCommandAsync(long telegramUserId, CancellationToken cancellationToken)
@@ -290,9 +299,9 @@ internal sealed class TelegramService
         {
             var code = _linkService.GeneratePendingCode(telegramUserId);
             await _apiService.SendMessageAsync(
-                telegramUserId,
-                $"🔗 Ваш код: *{code}*\n\nОтправьте `\\!start` боту в Matrix и введите этот код\\.",
-                cancellationToken).ConfigureAwait(false);
+                        telegramUserId,
+                        $"🔗 Ваш код: *{code}*\n\nОтправьте `\\!start` боту в Matrix и введите этот код\\.",
+                        cancellationToken).ConfigureAwait(false);
 
             Log.Information("Код отправлен пользователю.");
         }
@@ -309,47 +318,35 @@ internal sealed class TelegramService
         await _apiService.SendMessageAsync(telegramUserId, "✅ Связь с Matrix удалена.", cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task ForwardToMatrixAsync(
-        Message message,
-        string roomKey,
-        string prefix,
-        string formattedPrefix,
-        CancellationToken cancellationToken)
+    private async Task SendMessageToMatrixAsync(Message message, CancellationToken cancellationToken)
     {
-        if (!string.IsNullOrEmpty(message.Text))
-        {
-            var formattedText = $"{formattedPrefix}{TelegramEntitiesParser.ParseToHtml(message.Text, message.Entities)}";
-            await _matrixService.SendMessageToRoomAsync(
-                roomKey,
-                new Matrix.FormattedMessage(formattedText, message.Text),
-                cancellationToken).ConfigureAwait(false);
-        }
-
+        var mustSend = true;
         var mediaSize = message.GetMediaSize(_maxFileSizeInBytes);
         if (mediaSize > 0)
         {
-            if (mediaSize < _maxFileSizeInBytes)
+            mustSend = mediaSize <= _maxFileSizeInBytes;
+            if (mustSend)
             {
-                await SendMediaToMatrixAsync(message, roomKey, prefix, formattedPrefix, cancellationToken).ConfigureAwait(false);
+                message.ProcessedMedia = await ProcessMediaAsync(message, cancellationToken).ConfigureAwait(false);
             }
             else
             {
                 await _apiService.SendMessageAsync(
-                    message.ChatId,
-                    $"❌ Размер пересылаемого медиа превышает установленный лимит в {_maxFileSizeMegaBytes} мбайт.",
-                    cancellationToken).ConfigureAwait(false);
+                        message.From!.Id,
+                        $"❌ Размер пересылаемого медиа превышает установленный лимит в {_maxFileSizeMegaBytes} мбайт.",
+                        cancellationToken).ConfigureAwait(false);
             }
+        }
+
+        if (mustSend)
+        {
+            await _writeChannel.WriteAsync(message, cancellationToken).ConfigureAwait(false);
         }
     }
 
-    private async Task SendMediaToMatrixAsync(
-        Message message,
-        string roomKey,
-        string plainPrefix,
-        string formattedPrefix,
-        CancellationToken cancellationToken)
+    private async Task<ProcessedMedia> ProcessMediaAsync(Message message, CancellationToken cancellationToken)
     {
-        MediaInfo mediaToSend = message switch
+        ProcessedMedia processedMedia = message switch
         {
             { Photo.Length: > 0 } => SetPhotoDefaults(message.GetPhoto(_maxFileSizeInBytes)!),
             { Document: { } doc } => SetDocumentDefaults(doc),
@@ -361,10 +358,24 @@ internal sealed class TelegramService
             _ => throw new InvalidOperationException("Неизвестный тип медиа."),
         };
 
-        mediaToSend.Caption = $"{plainPrefix}{message.Caption}";
-        mediaToSend.FormattedCaption = $"{formattedPrefix}{TelegramEntitiesParser.ParseToHtml(message.Caption, message.CaptionEntities)}";
+        await DownloadMediaFilesAsync(
+                    processedMedia,
+                    cancellationToken).ConfigureAwait(false);
 
-        await SendMediaToMatrixAsync(mediaToSend, roomKey, cancellationToken).ConfigureAwait(false);
+        return processedMedia;
+    }
+
+    private async Task<ProcessedMedia> DownloadMediaFilesAsync(
+        ProcessedMedia processedMedia,
+        CancellationToken cancellationToken)
+    {
+        processedMedia.MediaFileStream = await GetMediaFileStreamAsync(processedMedia.MediaInfo.FileId, cancellationToken).ConfigureAwait(false);
+        if (processedMedia.MediaInfo.Thumbnail is not null)
+        {
+            processedMedia.ThumbnailFileStream = await GetMediaFileStreamAsync(processedMedia.MediaInfo.Thumbnail.FileId, cancellationToken).ConfigureAwait(false);
+        }
+
+        return processedMedia;
     }
 
     private async Task<Stream?> GetMediaFileStreamAsync(string fileId, CancellationToken cancellationToken)
@@ -381,99 +392,5 @@ internal sealed class TelegramService
         }
 
         return result;
-    }
-
-    private async Task SendMediaToMatrixAsync(
-        MediaInfo mediaInfo,
-        string roomKey,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(mediaInfo.FileId, "mediaInfo.FileId");
-        ArgumentNullException.ThrowIfNull(mediaInfo.FileName, "mediaInfo.FileName");
-        ArgumentNullException.ThrowIfNull(mediaInfo.MimeType, "mediaInfo.MimeType");
-        ArgumentNullException.ThrowIfNull(mediaInfo.MatrixMessageType, "mediaInfo.MatrixMessageType");
-        ArgumentNullException.ThrowIfNull(mediaInfo.Caption, "mediaInfo.Caption");
-        ArgumentNullException.ThrowIfNull(mediaInfo.FormattedCaption, "mediaInfo.FormattedCaption");
-
-        try
-        {
-            using var fileStream = await GetMediaFileStreamAsync(mediaInfo.FileId, cancellationToken).ConfigureAwait(false);
-            if (fileStream is not null)
-            {
-                var mxcUri = await _matrixService.UploadFileAsync(fileStream, mediaInfo.FileName, mediaInfo.MimeType, cancellationToken).ConfigureAwait(false);
-                if (mxcUri is not null)
-                {
-                    var messageContent = new Dictionary<string, object>
-                    {
-                        { "msgtype", mediaInfo.MatrixMessageType },
-                        { "filename", mediaInfo.FileName },
-                        { "body", mediaInfo.Caption },
-                        { "formatted_body", mediaInfo.FormattedCaption },
-                        { "format","org.matrix.custom.html" },
-                        { "url", mxcUri },
-                        {
-                            "info", new Dictionary<string, object>
-                            {
-                                { "mimetype", mediaInfo.MimeType },
-                                { "size", mediaInfo.FileSize.GetValueOrDefault(0) },
-                            }
-                        },
-                    };
-
-                    if (mediaInfo.Thumbnail is not null
-                        && mediaInfo.Thumbnail.Width is not null
-                        && mediaInfo.Thumbnail.Height is not null)
-                    {
-                        using var thumbFileStream = await GetMediaFileStreamAsync(mediaInfo.Thumbnail.FileId, cancellationToken).ConfigureAwait(false);
-
-                        if (thumbFileStream is not null)
-                        {
-                            var thumbnailMxcUri = await _matrixService.UploadFileAsync(
-                                    thumbFileStream,
-                                    mediaInfo.Thumbnail.FileName ?? mediaInfo.FileName,
-                                    mediaInfo.Thumbnail.MimeType ?? "image/jpeg",
-                                    cancellationToken).ConfigureAwait(false);
-                            if (thumbnailMxcUri is not null)
-                            {
-                                ((Dictionary<string, object>)messageContent["info"]).Add(
-                                    "thumbnail_info",
-                                    new Dictionary<string, object>
-                                    {
-                                        { "mimetype", mediaInfo.Thumbnail.MimeType ?? "image/jpeg" },
-                                        { "w", mediaInfo.Thumbnail.Width },
-                                        { "h", mediaInfo.Thumbnail.Height },
-                                        { "size", mediaInfo.Thumbnail.FileSize.GetValueOrDefault(0) },
-                                    });
-                                ((Dictionary<string, object>)messageContent["info"]).Add("thumbnail_url", thumbnailMxcUri);
-                            }
-                        }
-                    }
-
-                    if (mediaInfo.Width.HasValue)
-                    {
-                        ((Dictionary<string, object>)messageContent["info"]).Add("w", mediaInfo.Width.Value);
-                    }
-
-                    if (mediaInfo.Height.HasValue)
-                    {
-                        ((Dictionary<string, object>)messageContent["info"]).Add("h", mediaInfo.Height.Value);
-                    }
-
-                    if (mediaInfo.Duration.HasValue)
-                    {
-                        ((Dictionary<string, object>)messageContent["info"]).Add("duration", mediaInfo.Duration.Value * Program.MillisecondsInOneSecond);
-                    }
-
-                    var content = JsonContent.Create(messageContent, MatrixJsonContext.Default.DictionaryStringObject);
-                    var response = await _matrixService.SendToRoomAsync(roomKey, content, cancellationToken).ConfigureAwait(false);
-
-                    Log.Information("Медиа отправлено в комнату {roomKey}: {statusCode}", roomKey, response.StatusCode);
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "Ошибка отправки медиа в Matrix.");
-        }
     }
 }

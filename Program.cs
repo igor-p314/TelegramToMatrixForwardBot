@@ -2,7 +2,9 @@ namespace TelegramToMatrixForward;
 
 using Serilog;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
+using TelegramToMatrixForward.Dto.Matrix;
 using TelegramToMatrixForward.Matrix;
 using TelegramToMatrixForward.Storage;
 using TelegramToMatrixForward.Telegram;
@@ -12,13 +14,9 @@ using TelegramToMatrixForward.Telegram;
 /// </summary>
 public class Program
 {
-    internal const int MillisecondsInOneSecond = 1000;
-
-    private const long OneDayInMilliseconds = 86_400_000L;
-
     private static readonly CancellationTokenSource CancelTokenSource = new();
-
-    public static int PollTimeoutMilliseconds { get; private set; }
+    private static readonly Channel<Dto.Telegram.Message> ToMatrixChannel = Channel.CreateUnbounded<Dto.Telegram.Message>();
+    private static readonly Channel<ToTelegramMessage> ToTelegramChannel = Channel.CreateUnbounded<ToTelegramMessage>();
 
     public static async Task Main()
     {
@@ -29,40 +27,21 @@ public class Program
                 "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} {Level:u4} {SourceContext} {Message:lj}{NewLine}{Exception}")
             .CreateLogger();
 
+        var applicationSettings = new ApplicationSettings();
         try
         {
-            var botToken = Environment.GetEnvironmentVariable("TELEGRAM_BOT_TOKEN")
-                ?? throw new InvalidOperationException("Не задана переменная среды TELEGRAM_BOT_TOKEN");
-
-            var encryptionKey = Environment.GetEnvironmentVariable("LINKS_ENCRYPTION_KEY")
-                ?? throw new InvalidOperationException("Не задана переменная среды LINKS_ENCRYPTION_KEY");
-
-            var linksFilePath = Environment.GetEnvironmentVariable("LINKS_FILE_PATH") ?? "data/links.bin";
-
-            var maxFileSizeMb = int.Parse(Environment.GetEnvironmentVariable("MAX_FILE_SIZE_MB") ?? "50");
-
-            PollTimeoutMilliseconds = int.Parse(Environment.GetEnvironmentVariable("BOT_POLL_TIMEOUT") ?? "30000");
-
-            var batchTokenPath = Environment.GetEnvironmentVariable("MATRIX_BOT_BATCH_TOKEN_PATH") ?? "data/token.txt";
-            var messageRetention = long.TryParse(Environment.GetEnvironmentVariable("MATRIX_ROOM_RETENTION"), out var parsed)
-                                                        ? parsed
-                                                        : OneDayInMilliseconds;
-
-            var offsetIdPath = Environment.GetEnvironmentVariable("TELEGRAM_BOT_OFFSETID_PATH") ?? "data/offset.txt";
-
-            var linkService = new LinkService(TimeProvider.System, linksFilePath, encryptionKey);
+            var linkService = new LinkService(TimeProvider.System, applicationSettings);
             await linkService.LoadAsync(CancelTokenSource.Token).ConfigureAwait(false);
 
-            var matrixService = new MatrixService(linkService, batchTokenPath, messageRetention);
+            var matrixService = new MatrixService(linkService, ToMatrixChannel.Reader, ToTelegramChannel.Writer, applicationSettings);
 
-            var telegramApiService = new TelegramApiService(botToken);
-            var telegramService = new TelegramService(telegramApiService, matrixService, linkService, maxFileSizeMb, offsetIdPath);
+            var telegramService = new TelegramService(linkService, ToMatrixChannel.Writer, ToTelegramChannel.Reader, applicationSettings);
 
             IEnumerable<Task> syncTasks = [
                 matrixService.StartAsync(CancelTokenSource.Token),
                 telegramService.StartAsync(CancelTokenSource.Token)];
 
-            Log.Information("Бот запущен. Ожидание сообщений...");
+            Log.Information("Боты запущены. Ожидание сообщений...");
 
             var result = await Task.WhenAny(syncTasks).ConfigureAwait(false);
             if (result.Exception is not null)
@@ -72,11 +51,11 @@ public class Program
         }
         catch (OperationCanceledException)
         {
-            Log.Information("Бот остановлен.");
+            Log.Information("Боты остановлены.");
         }
         catch (Exception ex)
         {
-            Log.Fatal(ex, "Бот завершился с ошибкой.");
+            Log.Fatal(ex, "Ошибка в процессе выполнения.");
         }
         finally
         {

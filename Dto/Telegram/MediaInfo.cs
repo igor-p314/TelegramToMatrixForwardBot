@@ -20,8 +20,6 @@ internal sealed class MediaInfo
 
     public string? MimeType { get; set; }
 
-    public string? MatrixMessageType { get; set; }
-
     public Qualitiy[]? Qualities { get; set; }
 
     public bool? IsVideo { get; set; }

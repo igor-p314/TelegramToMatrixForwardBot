@@ -12,9 +12,9 @@ internal sealed class LinkService
     private readonly Dictionary<string, (long telegramUserId, DateTimeOffset createdAt)> _pendingCodes = [];
     private readonly TimeProvider _timeProvider;
 
-    public LinkService(TimeProvider timeProvider, string linksFilePath, string encryptionKey)
+    public LinkService(TimeProvider timeProvider, ApplicationSettings applicationSettings)
     {
-        _store = new EncryptedLinkStore(linksFilePath, encryptionKey);
+        _store = new EncryptedLinkStore(applicationSettings);
         _timeProvider = timeProvider;
     }
 

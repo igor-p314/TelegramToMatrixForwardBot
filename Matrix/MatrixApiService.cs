@@ -22,15 +22,15 @@ internal sealed class MatrixApiService
     /// <summary>
     /// Создаёт экземпляр HTTP-клиента для Matrix API.
     /// </summary>
-    /// <param name="pollTimeoutSeconds">Таймаут long-polling в миллисекундах.</param>
-    public MatrixApiService()
+    /// <param name="applicationSettings">Настройки приложения.</param>
+    public MatrixApiService(ApplicationSettings applicationSettings)
     {
         HomeServerUrl = Environment.GetEnvironmentVariable("MATRIX_HOMESERVER_URL")
             ?? throw new InvalidOperationException("Не задана переменная среды MATRIX_HOMESERVER_URL");
 
         _matrixHttpClient = new HttpClient()
         {
-            Timeout = TimeSpan.FromMilliseconds(Program.PollTimeoutMilliseconds + AdditionalTimeoutMilliseconds),
+            Timeout = TimeSpan.FromMilliseconds(applicationSettings.PollTimeoutMilliseconds + AdditionalTimeoutMilliseconds),
             BaseAddress = new Uri($"https://{MatrixPrefix}.{HomeServerUrl}"),
         };
     }

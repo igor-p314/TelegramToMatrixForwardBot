@@ -19,12 +19,11 @@ internal sealed class TelegramApiService
     /// <summary>
     /// Создаёт экземпляр сервиса Telegram API.
     /// </summary>
-    /// <param name="botToken">Токен бота Telegram.</param>
-    /// <param name="pollTimeoutSeconds">Таймаут long-polling в секундах.</param>
-    public TelegramApiService(string botToken)
+    /// <param name="applicationSettings">Настройки приложения.</param>
+    public TelegramApiService(ApplicationSettings applicationSettings)
     {
-        _botToken = botToken;
-        _pollTimeoutSeconds = Program.PollTimeoutMilliseconds / Program.MillisecondsInOneSecond;
+        _botToken = applicationSettings.TelegramBotToken;
+        _pollTimeoutSeconds = applicationSettings.PollTimeoutMilliseconds / ApplicationSettings.MillisecondsInOneSecond;
         _httpClient = new HttpClient
         {
             BaseAddress = new Uri("https://api.telegram.org/"),

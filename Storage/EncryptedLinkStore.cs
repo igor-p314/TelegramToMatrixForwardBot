@@ -13,10 +13,10 @@ internal sealed class EncryptedLinkStore
     private readonly byte[] _encryptionKey;
     private readonly string _filePath;
 
-    public EncryptedLinkStore(string filePath, string encryptionKey)
+    public EncryptedLinkStore(ApplicationSettings applicationSettings)
     {
-        _filePath = filePath;
-        _encryptionKey = System.Text.Encoding.UTF8.GetBytes(encryptionKey);
+        _filePath = applicationSettings.LinksFilePath;
+        _encryptionKey = System.Text.Encoding.UTF8.GetBytes(applicationSettings.EncryptionKey);
 #pragma warning disable MEN010 // Длина ключа 32 байта.
         if (_encryptionKey.Length != 32)
         {

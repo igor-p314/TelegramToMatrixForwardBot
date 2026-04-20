@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace TelegramToMatrixForward.Dto.Telegram;
 
 internal sealed class Message
@@ -33,6 +35,12 @@ internal sealed class Message
     public User? ForwardFrom { get; set; }
 
     public Chat? ForwardFromChat { get; set; }
+
+    /// <summary>
+    /// Медиа после обработки TelegramService.
+    /// </summary>
+    [property: JsonIgnore]
+    public ProcessedMedia? ProcessedMedia { get; set; }
 
     public long GetMediaSize(int maxFileSize)
     {
