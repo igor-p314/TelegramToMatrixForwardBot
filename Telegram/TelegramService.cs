@@ -301,7 +301,7 @@ internal sealed class TelegramService
         }
         else
         {
-            await _apiService.SendMessageAsync(telegramUserId, "✅ Вы уже связаны с Matrix. Для отключения связи используйте /stop.", cancellationToken)
+            await _apiService.SendMessageAsync(telegramUserId, "✅ Вы уже связаны с Matrix\\. Для отключения связи используйте /stop\\.", cancellationToken)
                 .ConfigureAwait(false);
         }
     }
@@ -309,7 +309,7 @@ internal sealed class TelegramService
     private async Task HandleStopCommandAsync(long telegramUserId, CancellationToken cancellationToken)
     {
         await _linkService.UnlinkAsync(telegramUserId, cancellationToken).ConfigureAwait(false);
-        await _apiService.SendMessageAsync(telegramUserId, "✅ Связь с Matrix удалена.", cancellationToken).ConfigureAwait(false);
+        await _apiService.SendMessageAsync(telegramUserId, "✅ Связь с Matrix удалена\\.", cancellationToken).ConfigureAwait(false);
     }
 
     private async Task SaveOffsetAsync(string offset, CancellationToken cancellationToken)
@@ -339,7 +339,7 @@ internal sealed class TelegramService
             {
                 await _apiService.SendMessageAsync(
                         message.From!.Id,
-                        $"❌ Размер пересылаемого медиа превышает установленный лимит в {_maxFileSizeMegaBytes} мбайт.",
+                        $"❌ Размер пересылаемого медиа превышает установленный лимит в {_maxFileSizeMegaBytes} мбайт\\.",
                         cancellationToken).ConfigureAwait(false);
             }
         }

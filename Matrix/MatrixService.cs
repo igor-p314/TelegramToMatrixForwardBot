@@ -170,7 +170,7 @@ internal sealed class MatrixService
                 new ToTelegramMessage
                 {
                     ChatId = message.ChatId,
-                    Text = "❌ Вы не связаны с Matrix. Отправьте /start для настройки связи.",
+                    Text = "❌ Вы не связаны с Matrix\\. Отправьте /start для настройки связи\\.",
                 },
                 cancellationToken).ConfigureAwait(false);
         }
