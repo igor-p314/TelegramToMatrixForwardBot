@@ -369,28 +369,13 @@ internal sealed class TelegramService
         ProcessedMedia processedMedia,
         CancellationToken cancellationToken)
     {
-        processedMedia.MediaFileStream = await GetMediaFileStreamAsync(processedMedia.MediaInfo.FileId, cancellationToken).ConfigureAwait(false);
+        processedMedia.MediaFileStream = await _apiService.GetMediaFileStreamAsync(processedMedia.MediaInfo.FileId, cancellationToken).ConfigureAwait(false);
         if (processedMedia.MediaInfo.Thumbnail is not null)
         {
-            processedMedia.ThumbnailFileStream = await GetMediaFileStreamAsync(processedMedia.MediaInfo.Thumbnail.FileId, cancellationToken).ConfigureAwait(false);
+            processedMedia.ThumbnailFileStream = await _apiService.GetMediaFileStreamAsync(processedMedia.MediaInfo.Thumbnail.FileId, cancellationToken)
+                .ConfigureAwait(false);
         }
 
         return processedMedia;
-    }
-
-    private async Task<Stream?> GetMediaFileStreamAsync(string fileId, CancellationToken cancellationToken)
-    {
-        Stream? result = null;
-        var fileResponse = await _apiService.GetFileAsync(fileId, cancellationToken).ConfigureAwait(false);
-        if (fileResponse?.FilePath is not null)
-        {
-            result = await _apiService.DownloadFileAsync(fileResponse.FilePath, cancellationToken).ConfigureAwait(false);
-        }
-        else
-        {
-            Log.Error("Не получен path для файла {fileId}.", fileId);
-        }
-
-        return result;
     }
 }

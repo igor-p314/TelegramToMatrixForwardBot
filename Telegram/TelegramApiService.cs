@@ -15,6 +15,7 @@ internal sealed class TelegramApiService
     private readonly HttpClient _httpClient;
     private readonly string _botToken;
     private readonly int _pollTimeoutSeconds;
+    private readonly string? _filePath;
 
     /// <summary>
     /// Создаёт экземпляр сервиса Telegram API.
@@ -29,6 +30,8 @@ internal sealed class TelegramApiService
             BaseAddress = new Uri(applicationSettings.TelegramApiUrl),
             Timeout = TimeSpan.FromSeconds(_pollTimeoutSeconds + AdditionalSecondsToTimeout),
         };
+
+        _filePath = applicationSettings.TelegramFilesPath;
     }
 
     /// <summary>
@@ -84,13 +87,50 @@ internal sealed class TelegramApiService
         }
     }
 
+    public async Task<Stream?> GetMediaFileStreamAsync(string fileId, CancellationToken cancellationToken)
+    {
+        Stream? result = null;
+        var fileResponse = await GetFileAsync(fileId, cancellationToken).ConfigureAwait(false);
+        if (fileResponse?.FilePath is not null)
+        {
+            result = string.IsNullOrEmpty(_filePath)
+                ? await DownloadFileAsync(fileResponse.FilePath, cancellationToken).ConfigureAwait(false)
+                : GetFileFromDisk(_filePath, Path.Combine(_botToken, fileResponse.FilePath));
+        }
+        else
+        {
+            Log.Error("Не получен path для файла {fileId}.", fileId);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Скачивает файл с серверов Telegram.
+    /// </summary>
+    /// <param name="mountPath">Путь к папке с файлами.</param>
+    /// <param name="filePath">Путь к файлу, полученный из GetFileAsync.</param>
+    /// <returns>Поток с данными файла.</returns>
+    private static FileStream GetFileFromDisk(string mountPath, string filePath)
+    {
+        var fullPath = Path.Combine(mountPath, filePath);
+        if (File.Exists(fullPath))
+        {
+            return File.OpenRead(fullPath);
+        }
+        else
+        {
+            throw new FileNotFoundException($"File not found at {fullPath}");
+        }
+    }
+
     /// <summary>
     /// Получает информацию о файле в Telegram.
     /// </summary>
     /// <param name="fileId">Идентификатор файла.</param>
     /// <param name="cancellationToken">Токен отмены операции.</param>
     /// <returns>Информация о файле или null при ошибке.</returns>
-    public async Task<FileResponse?> GetFileAsync(string fileId, CancellationToken cancellationToken)
+    private async Task<FileResponse?> GetFileAsync(string fileId, CancellationToken cancellationToken)
     {
         var url = $"/bot{_botToken}/getFile?file_id={Uri.EscapeDataString(fileId)}";
         var response = await _httpClient.GetAsync(url, cancellationToken).ConfigureAwait(false);
@@ -108,7 +148,7 @@ internal sealed class TelegramApiService
     /// <param name="filePath">Путь к файлу, полученный из GetFileAsync.</param>
     /// <param name="cancellationToken">Токен отмены операции.</param>
     /// <returns>Поток с данными файла.</returns>
-    public async Task<Stream> DownloadFileAsync(string filePath, CancellationToken cancellationToken)
+    private async Task<Stream> DownloadFileAsync(string filePath, CancellationToken cancellationToken)
     {
         var url = $"/file/bot{_botToken}/{filePath}";
         var response = await _httpClient.GetAsync(url, cancellationToken).ConfigureAwait(false);
