@@ -26,7 +26,7 @@ internal sealed class TelegramApiService
         _pollTimeoutSeconds = applicationSettings.PollTimeoutMilliseconds / ApplicationSettings.MillisecondsInOneSecond;
         _httpClient = new HttpClient
         {
-            BaseAddress = new Uri("https://api.telegram.org/"),
+            BaseAddress = new Uri(applicationSettings.TelegramApiUrl),
             Timeout = TimeSpan.FromSeconds(_pollTimeoutSeconds + AdditionalSecondsToTimeout),
         };
     }
@@ -114,15 +114,5 @@ internal sealed class TelegramApiService
         var response = await _httpClient.GetAsync(url, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-    }
-
-    /// <summary>
-    /// Формирует прямой URL для скачивания файла.
-    /// </summary>
-    /// <param name="filePath">Путь к файлу.</param>
-    /// <returns>Прямая ссылка для скачивания.</returns>
-    public string GetFileDownloadUrl(string filePath)
-    {
-        return $"https://api.telegram.org/file/bot{_botToken}/{filePath}";
     }
 }

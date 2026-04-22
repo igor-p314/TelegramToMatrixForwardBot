@@ -22,6 +22,8 @@ internal struct ApplicationSettings
 
     public string TelegramOffsetIdPath { get; }
 
+    public string TelegramApiUrl { get; }
+
     public ApplicationSettings()
     {
         TelegramBotToken = Environment.GetEnvironmentVariable("TELEGRAM_BOT_TOKEN")
@@ -42,5 +44,6 @@ internal struct ApplicationSettings
                                                     : OneDayInMilliseconds;
 
         TelegramOffsetIdPath = Environment.GetEnvironmentVariable("TELEGRAM_BOT_OFFSETID_PATH") ?? "data/offset.txt";
+        TelegramApiUrl = Environment.GetEnvironmentVariable("TELEGRAM_BOT_OFFSETID_PATH") ?? "https://api.telegram.org/";
     }
 }
