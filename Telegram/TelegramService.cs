@@ -49,12 +49,10 @@ internal sealed class TelegramService
     /// Обрабатывает одно сообщение из Telegram.
     /// </summary>
     /// <param name="message">Сообщение из Telegram.</param>
-    /// <param name="updateId">Идентификатор сообщения.</param>
     /// <param name="cancellationToken">Токен отмены операции.</param>
-    public async Task ProcessMessageAsync(Message message, int updateId, CancellationToken cancellationToken)
+    public async Task ProcessMessageAsync(Message message, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(message.From, "message.From");
-
         switch (message.Text)
         {
             case string text when "/start".Equals(text?.Trim()):
@@ -62,9 +60,6 @@ internal sealed class TelegramService
                 break;
             case string text when "/stop".Equals(text?.Trim()):
                 await HandleStopCommandAsync(message.From.Id, cancellationToken).ConfigureAwait(false);
-                break;
-            case string text when "/offset".Equals(text?.Trim()):
-                await SaveOffsetAsync((updateId + 1).ToString(), cancellationToken).ConfigureAwait(false);
                 break;
             default:
                 await SendMessageToMatrixAsync(message, cancellationToken).ConfigureAwait(false);
@@ -102,10 +97,9 @@ internal sealed class TelegramService
                 {
                     if (update.Message is not null && update.Message.From is not null)
                     {
-                        offset = Math.Max(offset, update.UpdateId + 1);
+                        await ProcessMessageAsync(update.Message, cancellationToken).ConfigureAwait(false);
 
-                        await ProcessMessageAsync(update.Message, update.UpdateId, cancellationToken).ConfigureAwait(false);
-
+                        offset = update.UpdateId + 1;
                         await SaveOffsetAsync(offset.ToString(), cancellationToken).ConfigureAwait(false);
                     }
                 }
