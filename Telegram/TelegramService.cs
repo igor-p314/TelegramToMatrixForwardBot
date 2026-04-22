@@ -49,8 +49,9 @@ internal sealed class TelegramService
     /// Обрабатывает одно сообщение из Telegram.
     /// </summary>
     /// <param name="message">Сообщение из Telegram.</param>
+    /// <param name="updateId">Идентификатор сообщения.</param>
     /// <param name="cancellationToken">Токен отмены операции.</param>
-    public async Task ProcessMessageAsync(Message message, CancellationToken cancellationToken)
+    public async Task ProcessMessageAsync(Message message, int updateId, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(message.From, "message.From");
 
@@ -61,6 +62,9 @@ internal sealed class TelegramService
                 break;
             case string text when "/stop".Equals(text?.Trim()):
                 await HandleStopCommandAsync(message.From.Id, cancellationToken).ConfigureAwait(false);
+                break;
+            case string text when "/offset".Equals(text?.Trim()):
+                await SaveOffsetAsync((updateId + 1).ToString(), cancellationToken).ConfigureAwait(false);
                 break;
             default:
                 await SendMessageToMatrixAsync(message, cancellationToken).ConfigureAwait(false);
@@ -100,16 +104,9 @@ internal sealed class TelegramService
                     {
                         offset = Math.Max(offset, update.UpdateId + 1);
 
-                        await ProcessMessageAsync(update.Message, cancellationToken).ConfigureAwait(false);
+                        await ProcessMessageAsync(update.Message, update.UpdateId, cancellationToken).ConfigureAwait(false);
 
-                        if (!string.IsNullOrEmpty(_applicationSettings.TelegramOffsetIdPath))
-                        {
-                            await File.WriteAllTextAsync(_applicationSettings.TelegramOffsetIdPath, offset.ToString(), cancellationToken).ConfigureAwait(false);
-                        }
-                        else
-                        {
-                            Log.Information("Не задан путь к Telegram Offset");
-                        }
+                        await SaveOffsetAsync(offset.ToString(), cancellationToken).ConfigureAwait(false);
                     }
                 }
             }
@@ -319,6 +316,18 @@ internal sealed class TelegramService
     {
         await _linkService.UnlinkAsync(telegramUserId, cancellationToken).ConfigureAwait(false);
         await _apiService.SendMessageAsync(telegramUserId, "✅ Связь с Matrix удалена.", cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task SaveOffsetAsync(string offset, CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrEmpty(_applicationSettings.TelegramOffsetIdPath))
+        {
+            await File.WriteAllTextAsync(_applicationSettings.TelegramOffsetIdPath, offset, cancellationToken).ConfigureAwait(false);
+        }
+        else
+        {
+            Log.Information("Не задан путь к Telegram Offset");
+        }
     }
 
     private async Task SendMessageToMatrixAsync(Message message, CancellationToken cancellationToken)
