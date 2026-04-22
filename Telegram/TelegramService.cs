@@ -28,18 +28,14 @@ internal sealed class TelegramService
     /// Создаёт экземпляр сервиса Telegram.
     /// </summary>
     /// <param name="linkService">Сервис управления связями.</param>
-    /// <param name="writeChannel">Канал для пересылки в Matrix.</param>
-    /// <param name="readChannel">Канал для пересылки в телеграмм.</param>
     /// <param name="applicationSettings">Настройки приложения.</param>
     public TelegramService(
         LinkService linkService,
-        ChannelWriter<Message> writeChannel,
-        ChannelReader<Dto.Matrix.ToTelegramMessage> readChannel,
         ApplicationSettings applicationSettings)
     {
         _apiService = new TelegramApiService(applicationSettings);
-        _writeChannel = writeChannel;
-        _readChannel = readChannel;
+        _writeChannel = Program.ToMatrixChannel.Writer;
+        _readChannel = Program.ToTelegramChannel.Reader;
 
         _linkService = linkService;
         _applicationSettings = applicationSettings;
@@ -88,6 +84,9 @@ internal sealed class TelegramService
         _ = ListenMatrixToTelegramChannelAsync(_readChannel, _apiService,  cancellationToken); // fire and forget
 
         Log.Information("Telegram bot запущен в режиме long polling.");
+
+        Program.TelegramServiceReady.SetResult(true);
+        await Program.MatrixServiceReady.Task.ConfigureAwait(false);
 
         while (!cancellationToken.IsCancellationRequested)
         {

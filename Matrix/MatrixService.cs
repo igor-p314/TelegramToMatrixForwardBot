@@ -36,17 +36,13 @@ internal sealed class MatrixService
     /// </summary>
     /// <param name="linkService">Сервис управления связями.</param>
     /// <param name="applicationSettings">Настройки приложения.</param>
-    /// <param name="toMatrixChannel">Канал для пересылки в Matrix.</param>
-    /// <param name="toTelegramChannel">Канал для пересылки в телеграмм.</param>
     public MatrixService(
         LinkService linkService,
-        ChannelReader<TelegramMessage> toMatrixChannel,
-        ChannelWriter<ToTelegramMessage> toTelegramChannel,
         ApplicationSettings applicationSettings)
     {
         _linkService = linkService;
-        _toTelegramChannel = toTelegramChannel;
-        _toMatrixChannel = toMatrixChannel;
+        _toTelegramChannel = Program.ToTelegramChannel.Writer;
+        _toMatrixChannel = Program.ToMatrixChannel.Reader;
         _apiService = new MatrixApiService(applicationSettings);
 
         var tempString = Environment.GetEnvironmentVariable("MATRIX_BOT_MAX_MESSAGE_AGE_MS");
@@ -66,9 +62,9 @@ internal sealed class MatrixService
     /// <param name="cancellationToken">Токен отмены операции.</param>
     internal async Task StartAsync(CancellationToken cancellationToken)
     {
-        _ = ListenTelegramToMatrixChannelAsync(cancellationToken); // fire and forget
-
         var authorizationService = await _apiService.AuthorizeAsync("/_matrix/client/v3/login", cancellationToken).ConfigureAwait(false);
+
+        _ = ListenTelegramToMatrixChannelAsync(cancellationToken); // fire and forget
 
         await ConnectToServerAsync(authorizationService, cancellationToken).ConfigureAwait(false);
     }
@@ -345,6 +341,9 @@ internal sealed class MatrixService
 
         var response = await _apiService.GetStringAsync(url, cancellationToken).ConfigureAwait(false);
         nextBatch = await ProcessSyncDataResponseAsync(response, authorizationService.UserId, cancellationToken).ConfigureAwait(false);
+
+        Program.MatrixServiceReady.SetResult(true);
+        await Program.TelegramServiceReady.Task.ConfigureAwait(false);
 
         while (!cancellationToken.IsCancellationRequested && !string.IsNullOrEmpty(nextBatch))
         {

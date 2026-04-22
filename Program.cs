@@ -14,9 +14,13 @@ using TelegramToMatrixForward.Telegram;
 /// </summary>
 public class Program
 {
+    internal static readonly TaskCompletionSource<bool> TelegramServiceReady = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    internal static readonly TaskCompletionSource<bool> MatrixServiceReady = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    internal static readonly Channel<Dto.Telegram.Message> ToMatrixChannel = Channel.CreateUnbounded<Dto.Telegram.Message>();
+    internal static readonly Channel<ToTelegramMessage> ToTelegramChannel = Channel.CreateUnbounded<ToTelegramMessage>();
+
     private static readonly CancellationTokenSource CancelTokenSource = new();
-    private static readonly Channel<Dto.Telegram.Message> ToMatrixChannel = Channel.CreateUnbounded<Dto.Telegram.Message>();
-    private static readonly Channel<ToTelegramMessage> ToTelegramChannel = Channel.CreateUnbounded<ToTelegramMessage>();
 
     public static async Task Main()
     {
@@ -33,9 +37,9 @@ public class Program
             var linkService = new LinkService(TimeProvider.System, applicationSettings);
             await linkService.LoadAsync(CancelTokenSource.Token).ConfigureAwait(false);
 
-            var matrixService = new MatrixService(linkService, ToMatrixChannel.Reader, ToTelegramChannel.Writer, applicationSettings);
+            var matrixService = new MatrixService(linkService, applicationSettings);
 
-            var telegramService = new TelegramService(linkService, ToMatrixChannel.Writer, ToTelegramChannel.Reader, applicationSettings);
+            var telegramService = new TelegramService(linkService, applicationSettings);
 
             IEnumerable<Task> syncTasks = [
                 matrixService.StartAsync(CancelTokenSource.Token),
