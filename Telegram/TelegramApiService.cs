@@ -93,6 +93,7 @@ internal sealed class TelegramApiService
         var fileResponse = await GetFileAsync(fileId, cancellationToken).ConfigureAwait(false);
         if (fileResponse?.FilePath is not null)
         {
+            Log.Information("FilePath:{filePath}, botToken:{botToken}, FullFilePath:{FullFilePath}", _filePath, _botToken, fileResponse.FilePath);
             result = string.IsNullOrEmpty(_filePath)
                 ? await DownloadFileAsync(fileResponse.FilePath, cancellationToken).ConfigureAwait(false)
                 : GetFileFromDisk(_filePath, Path.Combine(_botToken, fileResponse.FilePath));
