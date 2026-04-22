@@ -15,7 +15,7 @@ internal sealed class TelegramApiService
     private readonly HttpClient _httpClient;
     private readonly string _botToken;
     private readonly int _pollTimeoutSeconds;
-    private readonly string? _filePath;
+    private readonly bool _localFileMode;
 
     /// <summary>
     /// Создаёт экземпляр сервиса Telegram API.
@@ -31,7 +31,7 @@ internal sealed class TelegramApiService
             Timeout = TimeSpan.FromSeconds(_pollTimeoutSeconds + AdditionalSecondsToTimeout),
         };
 
-        _filePath = applicationSettings.TelegramFilesPath;
+        _localFileMode = applicationSettings.TelegramLocalFilesMode;
     }
 
     /// <summary>
@@ -93,10 +93,9 @@ internal sealed class TelegramApiService
         var fileResponse = await GetFileAsync(fileId, cancellationToken).ConfigureAwait(false);
         if (fileResponse?.FilePath is not null)
         {
-            Log.Information("FilePath:{filePath}, botToken:{botToken}, FullFilePath:{FullFilePath}", _filePath, _botToken, fileResponse.FilePath);
-            result = string.IsNullOrEmpty(_filePath)
-                ? await DownloadFileAsync(fileResponse.FilePath, cancellationToken).ConfigureAwait(false)
-                : GetFileFromDisk(_filePath, Path.Combine(_botToken, fileResponse.FilePath));
+            result = _localFileMode
+                ? GetFileFromDisk(fileResponse.FilePath)
+                : await DownloadFileAsync(fileResponse.FilePath, cancellationToken).ConfigureAwait(false);
         }
         else
         {
@@ -109,19 +108,17 @@ internal sealed class TelegramApiService
     /// <summary>
     /// Скачивает файл с серверов Telegram.
     /// </summary>
-    /// <param name="mountPath">Путь к папке с файлами.</param>
     /// <param name="filePath">Путь к файлу, полученный из GetFileAsync.</param>
     /// <returns>Поток с данными файла.</returns>
-    private static FileStream GetFileFromDisk(string mountPath, string filePath)
+    private static FileStream GetFileFromDisk(string filePath)
     {
-        var fullPath = Path.Combine(mountPath, filePath);
-        if (File.Exists(fullPath))
+        if (File.Exists(filePath))
         {
-            return File.OpenRead(fullPath);
+            return File.OpenRead(filePath);
         }
         else
         {
-            throw new FileNotFoundException($"File not found at {fullPath}");
+            throw new FileNotFoundException($"File not found at {filePath}");
         }
     }
 
