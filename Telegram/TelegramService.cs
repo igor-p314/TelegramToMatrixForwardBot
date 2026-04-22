@@ -106,6 +106,10 @@ internal sealed class TelegramService
                         {
                             await File.WriteAllTextAsync(_applicationSettings.TelegramOffsetIdPath, offset.ToString(), cancellationToken).ConfigureAwait(false);
                         }
+                        else
+                        {
+                            Log.Information("Не задан путь к Telegram Offset");
+                        }
                     }
                 }
             }

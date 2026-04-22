@@ -353,6 +353,10 @@ internal sealed class MatrixService
                 {
                     await File.WriteAllTextAsync(_batchTokenPath, nextBatch, cancellationToken).ConfigureAwait(false);
                 }
+                else
+                {
+                    Log.Information("Не задан путь к Matrix Batch Token");
+                }
 
                 url = $"/_matrix/client/v3/sync?since={Uri.EscapeDataString(nextBatch)}&timeout={_applicationSettings.PollTimeoutMilliseconds}";
                 response = await _apiService.GetStringAsync(url, cancellationToken).ConfigureAwait(false);
